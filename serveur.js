@@ -14,14 +14,45 @@ wss.on('connection', (ws) => {
     ws.on('close', () => clients.delete(ws));
 });
 
-app.get('/webhook', (req, res) => {
-    clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send('paiement_ok');
-        }
-    });
-    res.send('Message "paiement_ok" envoyé aux clients WebSocket.');
-});
+
+const trt = (req, res) => {
+    const event = req.query.event || "";
+    let call = req.query.call || "";
+    let delay = req.query.delay || 0;
+    let wait = req.query.wait || false;
+    const event_type = req.query.event_type || "";
+
+    // console.log("=== Incoming Request ===");
+    // console.log("Method:", req.method);
+    // console.log("Headers:", req.headers);
+    // console.log("Query Params:", req.query);
+    // console.log("Body:", req.body);
+    // console.log("Raw Payload:", JSON.stringify(req.body || req.query));
+    // console.log("========================");
+    let message = "";
+    if (event_type == 'printing') {
+        message = event_type;
+        call = 'http://192.168.1.217:1500/api/lockscreen/show?mode=print&password=NnopupWJvkmRXdg1';
+        // delay = 12;
+        wait=true
+    }
+    if (!call) {
+        res.send(`Message "${event}" "${call}" envoyé aux clients WebSocket.`);
+    } else {
+        const payload = JSON.stringify({ event, call, message, delay, wait });
+        console.log("Payload:", payload);
+        clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(payload);
+            }
+        });
+
+
+        res.send(`Message "${event}" "${call}" envoyé aux clients WebSocket.`);
+    }
+}
+app.get('/webhook', trt);
+app.post('/webhook', trt);
 
 app.listen(PORT_HTTP, () => {
     console.log(`Serveur HTTP lancé sur http://localhost:${PORT_HTTP}`);
@@ -40,7 +71,7 @@ function websocketTimeoutHandler() {
     let maxRetries = 3;
     let currentRetry = 0;
     let clients = new Set();
-    
+
     function initializeServer() {
         websocketServer = {
             status: "stopped",
